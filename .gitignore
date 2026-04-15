@@ -1,0 +1,8 @@
+.files
+
+__pycache__
+
+.env
+.venv
+
+working.txt
