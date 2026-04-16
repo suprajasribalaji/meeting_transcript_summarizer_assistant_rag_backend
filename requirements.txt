@@ -8,7 +8,6 @@ langchain-qdrant
 langchain-huggingface
 google-generativeai
 sentence-transformers
-faiss-cpu
 qdrant-client
 requests
 fastapi
