@@ -1,30 +1,45 @@
+# Core
+fastapi
+uvicorn
+python-multipart
+python-dotenv
+pydantic
+pydantic[email]
+email-validator
+
+# LangChain / LangGraph
 langgraph
 langchain
 langchain-core
 langchain-community
 langchain-groq
-langchain-google-genai
-langchain-qdrant
 langchain-huggingface
-google-generativeai
-sentence-transformers
-qdrant-client
-requests
-fastapi
-uvicorn
-python-multipart
-pydantic
-pydantic[email]
-email-validator
+langchain-qdrant
+langchain-text-splitters
+
+# LLM + Embeddings
 groq
+sentence-transformers
+
+# Vector DB
+qdrant-client
+
+# PDF
 pypdf
-python-dotenv
+
+# Database
 sqlalchemy
 asyncpg
 psycopg2-binary
-firebase-admin
+
+# Auth
 passlib==1.7.4
 bcrypt==4.0.1
 pyjwt
-tenacity
+
+# Supabase
 supabase
+
+# Utilities
+requests
+tenacity

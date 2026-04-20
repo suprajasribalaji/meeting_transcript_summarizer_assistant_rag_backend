@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.routes.auth import router as auth_router
 from app.services.sessions import router as sessions_router
-# Load environment variables
+
 load_dotenv()
 
 url = os.getenv("SUPABASE_URL")
@@ -16,10 +16,8 @@ if not url or not key:
 
 supabase: Client = create_client(url, key)
 
-# Create FastAPI app
 app = FastAPI()
 
-# Enable CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -28,17 +26,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include auth routes
 app.include_router(auth_router)
 app.include_router(sessions_router)
 
 @app.get("/")
 async def root():
-    """Health check endpoint"""
     return {"status": "API is running", "version": "1.0.0"}
 
 def verify_user_token(token: str):
-    """Verify JWT token and get user"""
     try:
         user = supabase.auth.get_user(token)
         return user
@@ -46,6 +41,5 @@ def verify_user_token(token: str):
         return None
 
 def get_user_data(user_id: str):
-    """Fetch user data from users table"""
     response = supabase.table("users").select("*").eq("id", user_id).execute()
     return response.data[0] if response.data else None
