@@ -4,6 +4,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from app.services.supabase_service import (
     SupabaseAuthService,
     SignupRequest,
+    SignupAvailabilityRequest,
     LoginRequest,
     UpdateProfileRequest,
 )
@@ -58,6 +59,18 @@ async def signup(request: SignupRequest):
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@router.post("/check-availability")
+async def check_availability(request: SignupAvailabilityRequest):
+    """Check whether signup fields are available."""
+    result = await SupabaseAuthService.check_signup_availability(
+        email=request.email,
+        username=request.username,
+    )
+    if result.get("success"):
+        return JSONResponse(status_code=200, content=result)
+    raise HTTPException(status_code=500, detail=result.get("message", "Availability check failed"))
+
+
 @router.post("/login")
 async def login(request: LoginRequest):
     """Authenticate and return access + refresh tokens."""
@@ -104,10 +117,27 @@ async def get_profile(user_id: str, current_user: dict = Depends(get_current_use
     if current_user["user_id"] != user_id:
         raise HTTPException(status_code=403, detail="You can only access your own profile")
 
+    # Self-heal missing profile rows from auth token claims.
+    await SupabaseAuthService.ensure_user_profile(
+        user_id=current_user["user_id"],
+        email=current_user.get("email", ""),
+        username=current_user.get("username"),
+    )
+
     profile = await SupabaseAuthService.get_user_profile(user_id)
     if profile:
         return JSONResponse(status_code=200, content=profile)
-    raise HTTPException(status_code=404, detail="User not found")
+    # Fallback to auth token data to avoid frontend hard failure.
+    return JSONResponse(
+        status_code=200,
+        content={
+            "id": current_user["user_id"],
+            "email": current_user.get("email", ""),
+            "username": current_user.get("username", ""),
+            "created_at": None,
+            "updated_at": None,
+        },
+    )
 
 
 @router.put("/profile/{user_id}")

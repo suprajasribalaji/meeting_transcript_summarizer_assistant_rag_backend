@@ -33,6 +33,11 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class SignupAvailabilityRequest(BaseModel):
+    email: Optional[EmailStr] = None
+    username: Optional[str] = None
+
+
 class UpdateProfileRequest(BaseModel):
     # FIX: Explicit model replaces the broken **updates pattern in auth.py
     username: Optional[str] = None
@@ -54,6 +59,73 @@ class SupabaseAuthService:
     """Service for handling Supabase authentication."""
 
     @staticmethod
+    async def check_signup_availability(email: Optional[str], username: Optional[str]) -> dict:
+        """Check whether email and/or username are available."""
+        normalized_email = (email or "").strip().lower()
+        normalized_username = (username or "").strip().lower()
+
+        email_available = True
+        username_available = True
+
+        try:
+            if normalized_email:
+                email_response = (
+                    service_client.table("users")
+                    .select("id", count="exact")
+                    .ilike("email", normalized_email)
+                    .limit(1)
+                    .execute()
+                )
+                email_available = (email_response.count or 0) == 0
+
+            if normalized_username:
+                username_response = (
+                    service_client.table("users")
+                    .select("id", count="exact")
+                    .ilike("username", normalized_username)
+                    .limit(1)
+                    .execute()
+                )
+                username_available = (username_response.count or 0) == 0
+
+            return {
+                "success": True,
+                "email_available": email_available,
+                "username_available": username_available,
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "email_available": True,
+                "username_available": True,
+                "message": str(e),
+            }
+
+    @staticmethod
+    async def ensure_user_profile(user_id: str, email: str, username: Optional[str] = None) -> None:
+        """Create users row if missing so profile endpoints never 404 for valid accounts."""
+        try:
+            existing = (
+                service_client.table("users")
+                .select("id")
+                .eq("id", user_id)
+                .limit(1)
+                .execute()
+            )
+            if existing.data:
+                return
+
+            payload = {"id": user_id, "email": email}
+            cleaned = (username or "").strip()
+            if cleaned:
+                payload["username"] = cleaned
+
+            service_client.table("users").insert(payload).execute()
+        except Exception:
+            # Non-fatal: callers can still fallback to token data.
+            return
+
+    @staticmethod
     async def signup(email: str, password: str, username: str) -> dict:
         """Create a new user in Supabase Auth and insert their profile row."""
         try:
@@ -64,6 +136,14 @@ class SupabaseAuthService:
 
             if not username.strip():
                 return {"success": False, "message": "Full name cannot be empty"}
+
+            availability = await SupabaseAuthService.check_signup_availability(email, username)
+            if not availability.get("success"):
+                return {"success": False, "message": "Could not validate signup details. Please try again."}
+            if not availability.get("email_available", True):
+                return {"success": False, "message": "An account with this email already exists"}
+            if not availability.get("username_available", True):
+                return {"success": False, "message": "This username is already taken"}
 
             print("Creating Supabase user...")
             response = service_client.auth.sign_up({
@@ -132,10 +212,19 @@ class SupabaseAuthService:
                 profile_response = service_client.table("users").select("username").eq("id", user.id).execute()
                 if profile_response.data:
                     username = profile_response.data[0].get("username", "")
+                elif user.user_metadata:
+                    username = user.user_metadata.get("username", "") or ""
             except Exception as profile_error:
                 print(f"Profile fetch failed (but login succeeded): {profile_error}")
                 # Use username from user metadata if profile doesn't exist
                 username = user.user_metadata.get("username", "") if user.user_metadata else ""
+
+            # Best effort: ensure a profile row exists for downstream profile/settings pages.
+            await SupabaseAuthService.ensure_user_profile(
+                user_id=user.id,
+                email=user.email or email,
+                username=username or (user.user_metadata.get("username", "") if user.user_metadata else ""),
+            )
 
             return {
                 "success": True,
@@ -162,7 +251,15 @@ class SupabaseAuthService:
             response = anon_client.auth.get_user(token)
             user = response.user
             if user:
-                return {"user_id": user.id, "email": user.email, "valid": True}
+                metadata_username = ""
+                if user.user_metadata:
+                    metadata_username = user.user_metadata.get("username", "") or ""
+                return {
+                    "user_id": user.id,
+                    "email": user.email,
+                    "username": metadata_username,
+                    "valid": True,
+                }
             return None
         except Exception:
             return None

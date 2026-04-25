@@ -7,6 +7,7 @@ import uuid
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
+import requests
 from app.services.supabase_service import service_client
 
 
@@ -70,11 +71,37 @@ def upload_meeting_pdf_bytes(user_id: str, original_filename: str, data: bytes) 
     storage_path = f"meeting_transcripts/{user_id}/{object_id}_{safe}"
 
     storage = service_client.storage.from_(bucket)
-    storage.upload(
-        storage_path,
-        data,
-        file_options={"content-type": "application/pdf"},
-    )
+    try:
+        storage.upload(
+            storage_path,
+            data,
+            file_options={"content-type": "application/pdf", "upsert": "false"},
+        )
+    except Exception as exc:
+        # Fallback to direct Storage REST API with service-role token.
+        supabase_url = os.getenv("SUPABASE_URL", "").strip().rstrip("/")
+        service_key = os.getenv("SUPABASE_SERVICE_KEY", "").strip()
+        if not supabase_url or not service_key:
+            raise RuntimeError(f"Storage upload failed: {exc}") from exc
+
+        upload_url = f"{supabase_url}/storage/v1/object/{bucket}/{storage_path}"
+        response = requests.post(
+            upload_url,
+            headers={
+                "apikey": service_key,
+                "Authorization": f"Bearer {service_key}",
+                "Content-Type": "application/pdf",
+                "x-upsert": "false",
+            },
+            data=data,
+            timeout=60,
+        )
+        if response.status_code >= 400:
+            try:
+                detail = response.json()
+            except Exception:
+                detail = response.text
+            raise RuntimeError(f"Storage upload failed: {detail}") from exc
 
     use_public = os.getenv("SUPABASE_STORAGE_PUBLIC", "true").lower() in (
         "1",
