@@ -8,7 +8,7 @@ from pathlib import Path
 from urllib.parse import unquote, urlparse
 
 import requests
-from app.services.supabase_service import service_client
+from services.supabase_service import service_client
 
 
 def _bucket_name() -> str:

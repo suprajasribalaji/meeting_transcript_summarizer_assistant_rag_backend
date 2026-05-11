@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from app.services.supabase_service import (
+from services.supabase_service import (
     SupabaseAuthService,
     SignupRequest,
     SignupAvailabilityRequest,

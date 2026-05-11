@@ -8,15 +8,15 @@ from fastapi.responses import JSONResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field
 from pypdf import PdfReader
-from app.services.supabase_service import service_client, SupabaseAuthService
-from app.services.supabase_storage import (
+from services.supabase_service import service_client, SupabaseAuthService
+from services.supabase_storage import (
     upload_meeting_pdf_bytes,
     delete_meeting_pdf_for_user,
     download_object_bytes_by_file_url,
 )
 from langchain_groq import ChatGroq
-from app.agents.graph import transcript_agent
-from app.services.vector_store import index_transcript, delete_transcript_index
+from agents.graph import transcript_agent
+from services.vector_store import index_transcript, delete_transcript_index
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 
 model = os.getenv("GROQ_LLM_MODEL", "llama-3.1-8b-instant")
